@@ -170,7 +170,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data-path",
         type=str,
-        default="data/MATH/validation.jsonl",
+        default="data/math/validation.jsonl",
         help="Path to MATH validation JSONL",
     )
     parser.add_argument(
