@@ -82,6 +82,8 @@ def evaluate_vllm(
             outputs.extend(gen_chunk)
 
             for ex, gen, gt in zip(ex_chunk, gen_chunk, gt_chunk):
+                if "</answer>" not in gen:
+                    gen = gen + "</answer>"
                 try:
                     metrics = reward_fn(gen, gt)
                 except Exception as e:
