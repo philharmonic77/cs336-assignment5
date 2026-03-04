@@ -26,10 +26,23 @@ test_dataset = concatenate_datasets(all_test)
 
 
 def extract_answer(solution):
-    match = re.search(r'\\boxed{([^}]*)}', solution)
-    if match:
-        return match.group(1)
-    return None
+    start = solution.find("\\boxed{")
+    if start == -1:
+        return None
+    i = start + len("\\boxed{")
+    depth = 1
+    out = []
+    while i < len(solution) and depth > 0:
+        ch = solution[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                break
+        out.append(ch)
+        i += 1
+    return "".join(out) if out else None
 
 
 def save_jsonl(dataset, path):
@@ -51,7 +64,7 @@ def save_jsonl(dataset, path):
 Path("data/math").mkdir(parents=True, exist_ok=True)
 
 save_jsonl(train_dataset, "data/math/train.jsonl")
-save_jsonl(test_dataset, "data/math/test.jsonl")
+save_jsonl(test_dataset, "data/math/validation.jsonl")
 
 print("Saved train/test JSONL.")
 print("Train size:", len(train_dataset))
