@@ -133,6 +133,7 @@ def main(
         temperature=0.0,
         top_p=1.0,
         max_tokens=512,
+        stop=["</answer>"]
     )
 
     ground_truths = [get_ground_truth(ex) for ex in examples]
