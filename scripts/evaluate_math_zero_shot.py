@@ -70,7 +70,7 @@ def evaluate_vllm(
     with xopen(output_path, "w") as fout:
         outputs: list[str] = []
         all_metrics: list[dict[str, float]] = []
-        chunk_size = 64
+        chunk_size = 256
         for start in tqdm(range(0, len(prompts), chunk_size)):
             end = start + chunk_size
             prompt_chunk = prompts[start:end]
@@ -132,7 +132,7 @@ def main(
     sampling_params = SamplingParams(
         temperature=0.0,
         top_p=1.0,
-        max_tokens=512,
+        max_tokens=1024,
         stop=["</answer>"]
     )
 
