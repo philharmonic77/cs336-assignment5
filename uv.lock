@@ -136,6 +136,8 @@ source = { editable = "." }
 dependencies = [
     { name = "accelerate" },
     { name = "alpaca-eval" },
+    { name = "datasets", version = "2.14.4", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'darwin'" },
+    { name = "datasets", version = "4.6.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },
     { name = "jupyter" },
     { name = "math-verify", extra = ["antlr4-13-2"] },
     { name = "notebook" },
@@ -161,6 +163,7 @@ gpu = [
 requires-dist = [
     { name = "accelerate", specifier = ">=1.5.2" },
     { name = "alpaca-eval", git = "https://github.com/nelson-liu/alpaca_eval.git?rev=forward_kwargs_to_vllm" },
+    { name = "datasets", specifier = ">=2.14.4" },
     { name = "flash-attn", marker = "extra == 'gpu'", specifier = "==2.7.4.post1" },
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "math-verify", extras = ["antlr4-13-2"], specifier = ">=0.7.0" },
