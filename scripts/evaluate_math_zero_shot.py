@@ -134,7 +134,7 @@ def main(
     sampling_params = SamplingParams(
         temperature=0.0,
         top_p=1.0,
-        max_tokens=1024,
+        max_tokens=2048,
         stop=["</answer>"]
     )
 
@@ -156,6 +156,39 @@ def main(
         for key in metric_keys:
             values = [m[key] for m in all_metrics if key in m]
             logger.info("%s: %.4f", key, mean(values))
+
+        c_correct = sum(
+            1
+            for m in all_metrics
+            if m.get("format_reward") == 1.0 and m.get("answer_reward") == 1.0
+        )
+        c_format_only = sum(
+            1
+            for m in all_metrics
+            if m.get("format_reward") == 1.0 and m.get("answer_reward") == 0.0
+        )
+        c_zero = sum(
+            1
+            for m in all_metrics
+            if m.get("format_reward") == 0.0 and m.get("answer_reward") == 0.0
+        )
+        c_answer_only = sum(
+            1
+            for m in all_metrics
+            if m.get("format_reward") == 0.0 and m.get("answer_reward") == 1.0
+        )
+        logger.info(
+            "count(correct_format_and_answer)= %d", c_correct
+        )
+        logger.info(
+            "count(format_only)= %d", c_format_only
+        )
+        logger.info(
+            "count(format0_answer0)= %d", c_zero
+        )
+        logger.info(
+            "count(format0_answer1)= %d", c_answer_only
+        )
 
 
 if __name__ == "__main__":
