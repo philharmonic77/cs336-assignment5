@@ -101,7 +101,11 @@ def main(
             raw_outputs = model.generate(prompts, sampling_params)
             gen_chunk = [output.outputs[0].text for output in raw_outputs]
 
-            for ex, prompt, gen, gt in zip(ex_chunk, prompts, gen_chunk, ground_truths):
+            for ex, prompt, gen, gt, raw_output in zip(
+                ex_chunk, prompts, gen_chunk, ground_truths, raw_outputs
+            ):
+                output0 = raw_output.outputs[0]
+                finish_reason = getattr(output0, "finish_reason", None)
                 try:
                     metrics = r1_zero_reward_fn(gen, gt)
                 except Exception as e:
@@ -120,6 +124,8 @@ def main(
                         {
                             "prompt": prompt,
                             "response": gen,
+                            "answer": gt,
+                            "finish_reason": finish_reason,
                             "metrics": metrics,
                         }
                     )
@@ -180,7 +186,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prompt-path",
         type=str,
-        default="cs336_alignment/prompts/r1_zero.prompt",
+        default="cs336_alignment/prompts/r1_zero_short.prompt",
         help="Prompt template path",
     )
     parser.add_argument(
