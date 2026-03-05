@@ -230,7 +230,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output-path",
         type=str,
-        default="outputs/qwen25_math_1p5b_r1_zero_math_validation.jsonl",
+        default="outputs/math_baseline/qwen25_math_1p5b_r1_zero_math_validation.jsonl",
         help="Path to write output JSONL",
     )
     parser.add_argument(
