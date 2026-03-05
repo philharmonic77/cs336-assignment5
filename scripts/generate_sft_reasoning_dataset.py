@@ -167,7 +167,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model-path",
         type=str,
-        default="deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+        #default="deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+        default="models/DeepSeek-R1-Distill-Qwen-7B",
         help="HF model name or local path",
     )
     parser.add_argument(
@@ -211,3 +212,11 @@ if __name__ == "__main__":
         seed=args.seed,
     )
     logger.info("finished running %s", sys.argv[0])
+
+
+# export HF_HUB_DISABLE_XET=1
+# export HF_ENDPOINT=https://hf-mirror.com
+
+# uv run huggingface-cli download \
+#   deepseek-ai/DeepSeek-R1-Distill-Qwen-7B \
+#   --local-dir models/DeepSeek-R1-Distill-Qwen-7B
