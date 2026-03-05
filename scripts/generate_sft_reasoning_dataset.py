@@ -87,7 +87,7 @@ def main(
         os.makedirs(output_dir, exist_ok=True)
 
     all_metrics = []
-    chunk_size = 64
+    chunk_size = 32
     with xopen(output_path, "w") as fout:
         for start in tqdm(range(0, len(sampled_examples), chunk_size)):
             end = start + chunk_size
