@@ -69,6 +69,7 @@ def main(
     logger.info("Loading vLLM model from %s", model_path)
     model = LLM(
         model=model_path,
+        tokenizer=model_path,
         trust_remote_code=True,
         max_model_len=8192,
         gpu_memory_utilization=0.95,
