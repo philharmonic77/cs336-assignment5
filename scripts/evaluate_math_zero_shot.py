@@ -81,7 +81,13 @@ def evaluate_vllm(
             gen_chunk = [output.outputs[0].text for output in raw_outputs]
             outputs.extend(gen_chunk)
 
-            for ex, gen, gt in zip(ex_chunk, gen_chunk, gt_chunk):
+            for ex, gen, gt, raw_output in zip(
+                ex_chunk, gen_chunk, gt_chunk, raw_outputs
+            ):
+                output0 = raw_output.outputs[0]
+                token_ids = getattr(output0, "token_ids", None)
+                num_generated_tokens = len(token_ids) if token_ids is not None else None
+                finish_reason = getattr(output0, "finish_reason", None)
                 try:
                     metrics = reward_fn(gen, gt)
                 except Exception as e:
@@ -101,6 +107,8 @@ def evaluate_vllm(
                         {
                             **ex,
                             "model_response": gen,
+                            "num_generated_tokens": num_generated_tokens,
+                            "finish_reason": finish_reason,
                             "metrics": metrics,
                         }
                     )
@@ -114,6 +122,9 @@ def main(
     data_path: str,
     prompt_path: str,
     output_path: str,
+    temperature: float,
+    top_p: float,
+    max_tokens: int,
 ):
     logger.info("Loading data from %s", data_path)
     examples = load_jsonl(data_path)
@@ -130,9 +141,9 @@ def main(
     )
 
     sampling_params = SamplingParams(
-        temperature=1.0,
-        top_p=1.0,
-        max_tokens=1024,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
         # Based on Dr. GRPO: stop when the model completes its answer.
         # https://github.com/sail-sg/understand-r1-zero/blob/c18804602b85da9e88b4aeeb6c43e2f08c594fbc/train_zero_math.py#L167
         stop=["</answer>"],
@@ -222,6 +233,24 @@ if __name__ == "__main__":
         default="outputs/qwen25_math_1p5b_r1_zero_math_validation.jsonl",
         help="Path to write output JSONL",
     )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="Sampling temperature",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=1.0,
+        help="Top-p sampling parameter",
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=1024,
+        help="Maximum number of generated tokens",
+    )
     args = parser.parse_args()
     logger.info("running %s", " ".join(sys.argv))
     main(
@@ -229,5 +258,8 @@ if __name__ == "__main__":
         data_path=args.data_path,
         prompt_path=args.prompt_path,
         output_path=args.output_path,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        max_tokens=args.max_tokens,
     )
     logger.info("finished running %s", sys.argv[0])
