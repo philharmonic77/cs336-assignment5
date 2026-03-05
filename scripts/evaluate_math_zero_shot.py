@@ -82,8 +82,6 @@ def evaluate_vllm(
             outputs.extend(gen_chunk)
 
             for ex, gen, gt in zip(ex_chunk, gen_chunk, gt_chunk):
-                if "</answer>" not in gen:
-                    gen = gen + "</answer>"
                 try:
                     metrics = reward_fn(gen, gt)
                 except Exception as e:
@@ -132,10 +130,13 @@ def main(
     )
 
     sampling_params = SamplingParams(
-        temperature=0.0,
+        temperature=1.0,
         top_p=1.0,
-        max_tokens=2048,
-        stop=["</answer>"]
+        max_tokens=1024,
+        # Based on Dr. GRPO: stop when the model completes its answer.
+        # https://github.com/sail-sg/understand-r1-zero/blob/c18804602b85da9e88b4aeeb6c43e2f08c594fbc/train_zero_math.py#L167
+        stop=["</answer>"],
+        include_stop_str_in_output=True,
     )
 
     ground_truths = [get_ground_truth(ex) for ex in examples]
