@@ -51,7 +51,7 @@ def get_response_log_probs(
     return_token_entropy: bool = False,
 ) -> dict[str, torch.Tensor]:
     
-    logits = model(input_ids) # (batch_size, sequence_length, vocab_size)
+    logits = model(input_ids).logits # (batch_size, sequence_length, vocab_size)
     selected = F.log_softmax(logits, dim=-1)
     log_probs = selected.gather(dim=-1, index=labels.unsqueeze(-1)).squeeze(-1)
 
