@@ -27,7 +27,7 @@ def tokenize_prompt_and_output(
         input_ids.append(ids[:-1])
         labels.append(ids[1:])
         response_mask.append([
-            1 if p_len <= i < total_len - 1 else 0
+            1 if p_len - 1 <= i < total_len - 1 else 0
             for i in range(max_len - 1)
         ])
 
