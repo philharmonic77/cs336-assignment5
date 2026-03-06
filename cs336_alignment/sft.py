@@ -1,5 +1,6 @@
 import torch
-from transformers import PreTrainedTokenizerBase
+import torch.nn.functional as F
+from transformers import PreTrainedTokenizerBase, PreTrainedModel
 
 def tokenize_prompt_and_output(
     prompt_strs: list[str],
@@ -36,3 +37,27 @@ def tokenize_prompt_and_output(
         "labels": torch.tensor(labels),
         "response_mask": torch.tensor(response_mask),
     }
+
+def compute_entropy(logits: torch.Tensor) -> torch.Tensor:
+    log_z = torch.logsumexp(logits, dim=-1, keepdim=True)   # log ∑ exp(z)
+    log_probs = logits - log_z
+    probs = torch.exp(log_probs)
+    return -(probs * log_probs).sum(dim=-1)
+
+def get_response_log_probs(
+    model: PreTrainedModel,
+    input_ids: torch.Tensor,
+    labels: torch.Tensor,
+    return_token_entropy: bool = False,
+) -> dict[str, torch.Tensor]:
+    
+    logits = model(input_ids) # (batch_size, sequence_length, vocab_size)
+    selected = F.log_softmax(logits, dim=-1)
+    log_probs = selected.gather(dim=-1, index=labels.unsqueeze(-1)).squeeze(-1)
+
+    if not return_token_entropy:
+        return {"log_probs": log_probs}
+    
+    token_entropy = compute_entropy(logits)
+    return {"log_probs": log_probs, "token_entropy": token_entropy}
+

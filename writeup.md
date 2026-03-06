@@ -1,10 +1,20 @@
 # SETUP
-For those who are following along at home:
-- you can get the same **MATH dataset** by running this [scripts](scripts/download_math_data.py).
+For those who are **following along at home**:
+- You can get the same **MATH dataset** by running this [scripts](scripts/download_math_data.py).
 
-- you can download Qwen2.5-Math-1.5B by running this [scripts](scripts/download_Qwen_model.py).
+- You can download Qwen2.5-Math-1.5B by running this [scripts](scripts/download_Qwen_model.py).
 
-- you can use a teacher model(deepseek-ai/DeepSeek-R1-Distill-Qwen-7B) to [generate](scripts/generate_sft_reasoning_dataset.py) reasoning traces for MATH problems and build an SFT dataset as a substitute for `/data/a5-alignment/MATH/sft.jsonl`, which will be used in section 4.
+- You can use a teacher model(deepseek-ai/DeepSeek-R1-Distill-Qwen-7B) to [generate](scripts/generate_sft_reasoning_dataset.py) reasoning traces for MATH - training set problems and build an SFT dataset as a substitute for `/data/a5-alignment/MATH/sft.jsonl`, which will be used in section 4.
+
+```
+Dataset Quality Summary (data/math/sft.jsonl):
+	•	Size: 15,000 reasoning traces.
+	•	Accuracy (relaxed evaluation): 6397 / 15000 ≈ 42.6%.
+	•	Reasoning length: average ≈772 tokens, maximum 1024 tokens.
+	•	finish_reason distribution: stop -> 8794 (≈58.6%)
+, length -> 6206 (≈41.4%)
+	•	Format: 100% do not strictly follow the <think> ... </think> <answer> ... </answer> structure.
+```
 
 # 3 Measuring Zero-Shot MATH Performance
 ## 3.2 Zero-shot MATH Baseline
@@ -174,3 +184,12 @@ The model follows the required output format, but the answer is incorrect.
 (c) The Qwen 2.5 Math 1.5B zero-shot baseline performs poorly on the MATH validation set. With temperature=1 and max_tokens=1024, the model achieves an answer accuracy of 2.7% (135/5000), and only 17.9% of generations satisfy the required output format, indicating that most outputs either fail the format constraint or produce incorrect answers.
 
 # 4 Supervised Finetuning for MATH
+## 4.2 SFT Helper Methods
+### Problem (tokenize_prompt_and_output): Prompt and output tokenization (2 points)
+See [tokenize_prompt_and_output func](cs336_alignment/sft.py).
+
+### Problem (compute_entropy): Per-token entropy (1 point)
+See [compute_entropy func](cs336_alignment/sft.py).
+
+### Problem (get_response_log_probs): Response log-probs (and entropy) (2 points)
+See [get_response_log_probs func](cs336_alignment/sft.py).
