@@ -62,7 +62,8 @@ def run_sft(
         attn_implementation="flash_attention_2",
         local_files_only=True
         ).to(train_device)
-    print(policy.config.use_cache)
+    policy.config.use_cache = False
+    policy.gradient_checkpointing_enable()
     
     tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
     if tokenizer.pad_token_id is None:
