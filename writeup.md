@@ -9,7 +9,7 @@ For those who are **following along at home**:
 ```
 Dataset Quality Summary (data/math/sft.jsonl):
 	•	Size: 15,000 reasoning traces.
-	•	Accuracy (relaxed evaluation): 6397 / 15000 ≈ 42.6%.
+	•	Accuracy (relaxed evaluation): 7695 / 15000 ≈ 51.3%.
 	•	Reasoning length: average ≈772 tokens, maximum 1024 tokens.
 	•	finish_reason distribution: stop -> 8794 (≈58.6%)
 , length -> 6206 (≈41.4%)
@@ -193,3 +193,15 @@ See [compute_entropy func](cs336_alignment/sft.py).
 
 ### Problem (get_response_log_probs): Response log-probs (and entropy) (2 points)
 See [get_response_log_probs func](cs336_alignment/sft.py).
+
+### Problem (masked_normalize): Masked normalize (1 point)
+See [masked_normalize func](cs336_alignment/sft.py).
+
+### Problem (sft_microbatch_train_step): Microbatch train step (3 points)
+See [sft_microbatch_train_step func](cs336_alignment/sft.py).
+
+### Problem (log_generations): Logging generations (1 point)
+See [log_generations func](cs336_alignment/sft.py).
+
+### Problem (sft_experiment): Run SFT on the MATH dataset (2 points) (2 H100 hrs)
+See [run func](cs336_alignment/sft.py).
