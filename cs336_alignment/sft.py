@@ -362,7 +362,7 @@ def main():
     parser.add_argument("--eval-data-path", type=Path, default=Path("data/math/validation.jsonl"))
     parser.add_argument("--prompt-path", type=Path, default=Path("cs336_alignment/prompts/r1_zero.prompt"))
     parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--gradient-accumulation-steps", type=int, default=2)
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=1)
     parser.add_argument("--eval-intervals", type=int, default=16)
     parser.add_argument("--lr", type=float, default=1e-5)
     parser.add_argument("--train-sample-size", type=int, default=128)
