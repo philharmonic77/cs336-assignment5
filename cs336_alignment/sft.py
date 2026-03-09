@@ -74,7 +74,7 @@ def run_sft(
     )
 
     model_path = str(model_path)
-    llm = init_vllm(model_path, eval_device, seed, 0.95)
+    llm = init_vllm(model_path, eval_device, seed)
     eval_prompt_template = load_prompt_template(prompt_path)
     eval_prompts = format_prompts(eval_data, eval_prompt_template)
 
