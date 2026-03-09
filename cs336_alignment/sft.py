@@ -5,7 +5,6 @@ from transformers import PreTrainedTokenizerBase, PreTrainedModel,\
 from vllm import LLM, SamplingParams
 from vllm.model_executor import set_random_seed as vllm_set_random_seed
 from cs336_alignment.drgrpo_grader import r1_zero_reward_fn
-from cs336_alignment.loose_grader import reward_ignore_format_fn
 from unittest.mock import patch
 import json
 import wandb
@@ -48,11 +47,12 @@ def run_sft(
 
     train_data = load_jsonl(train_jsonl_path)
     if only_use_correct:
-        train_data = [d for d in train_data if reward_ignore_format_fn(d["response"], d["answer"])]
-    assert len(train_data) >= train_sample_size
+        train_data = [d for d in train_data if r1_zero_reward_fn(d["response"], d["answer"])]
+        print(f"Original data size: {len(train_data)}")
 
-    subset_ids = random.sample(range(len(train_data)), train_sample_size)
+    subset_ids = random.choices(range(len(train_data)), k=train_sample_size)
     train_data = [train_data[i] for i in subset_ids]
+    print(f"Sampled data size: {len(train_data)}")
 
     eval_data = load_jsonl(eval_data_path)
 
@@ -360,7 +360,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Run SFT training.")
     parser.add_argument("--model-path", type=Path, default=Path("models/Qwen2.5-Math-1.5B"))
-    parser.add_argument("--train-jsonl-path", type=Path, default=Path("data/math/sft.jsonl"))
+    parser.add_argument("--train-jsonl-path", type=Path, default=Path("data/math/sft_format_correction.jsonl"))
     parser.add_argument("--eval-data-path", type=Path, default=Path("data/math/validation.jsonl"))
     parser.add_argument("--prompt-path", type=Path, default=Path("cs336_alignment/prompts/r1_zero.prompt"))
     parser.add_argument("--batch-size", type=int, default=2)

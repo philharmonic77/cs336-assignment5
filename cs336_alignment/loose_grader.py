@@ -11,17 +11,17 @@ from cs336_alignment.drgrpo_grader import extract_answer, grade
 def reward_ignore_format_fn(response, answer, fast=True):
     if "<answer>" in response:
         model_answer = response.split("<answer>")[-1].replace("</answer>", "").strip()
-        if model_answer and _grade_model_answer(model_answer, answer, fast):
+        if model_answer and _grade_like_r1_zero(model_answer, answer, fast):
             return True
 
     model_answer = extract_answer_from_answer_command(response)
-    if model_answer and _grade_model_answer(model_answer, answer, fast):
+    if model_answer and _grade_like_r1_zero(model_answer, answer, fast):
         return True
 
     model_answer = extract_answer(response)
     if model_answer is None:
         return False
-    return _grade_model_answer(model_answer, answer, fast)
+    return _grade_like_r1_zero(model_answer, answer, fast)
 
 
 def extract_answer_from_answer_command(text: str):
@@ -56,6 +56,14 @@ def _grade_model_answer(model_answer, answer, fast=True):
         return any(grade(model_answer, gt, fast=fast) for gt in answer)
 
     return False
+
+
+def _grade_like_r1_zero(model_answer, answer, fast=True):
+    if "\\boxed" in model_answer:
+        model_answer = extract_answer(model_answer)
+        if model_answer is None:
+            return False
+    return _grade_model_answer(model_answer, answer, fast)
 
 
 def main():

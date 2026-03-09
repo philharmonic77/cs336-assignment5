@@ -13,8 +13,10 @@ Dataset Quality Summary (data/math/sft.jsonl):
 	•	Reasoning length: average ≈772 tokens, maximum 1024 tokens.
 	•	finish_reason distribution: stop -> 8794 (≈58.6%)
 , length -> 6206 (≈41.4%)
-	•	Format: 100% do not strictly follow the <think> ... </think> <answer> ... </answer> structure.
+	•	Format: 100% do not strictly follow the <think> ... </think> <answer> ... </answer> structure. 
 ```
+
+By running this format correction [script](scipts/sft_format_correction.py), we force to correct their formats. The new data file is stored as `/MATH/sft_format_correction.jsonl`.
 
 # 3 Measuring Zero-Shot MATH Performance
 ## 3.2 Zero-shot MATH Baseline
