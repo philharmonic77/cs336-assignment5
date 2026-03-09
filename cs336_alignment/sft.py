@@ -48,7 +48,7 @@ def run_sft(
     train_data = load_jsonl(train_jsonl_path)
     if only_use_correct:
         train_data = [d for d in train_data if r1_zero_reward_fn(d["response"], d["answer"])]
-        print(f"Original data size: {len(train_data)}")
+    print(f"Original data size: {len(train_data)}")
 
     subset_ids = random.choices(range(len(train_data)), k=train_sample_size)
     train_data = [train_data[i] for i in subset_ids]
