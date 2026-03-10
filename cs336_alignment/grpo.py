@@ -26,7 +26,7 @@ def compute_group_normalized_rewards(
     advantages = grouped - group_means 
 
     if normalize_by_std:
-       group_stds = advantages.std(dim=1, keepdim=True, unbiased=False) + advantage_eps
+       group_stds = advantages.std(dim=1, keepdim=True) + advantage_eps
        advantages /= group_stds
     else:
         group_stds = None
