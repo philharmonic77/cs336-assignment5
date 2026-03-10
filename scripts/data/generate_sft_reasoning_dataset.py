@@ -5,6 +5,7 @@ import os
 import random
 import sys
 from statistics import mean
+from pathlib import Path
 
 from tqdm import tqdm
 from vllm import LLM, SamplingParams
@@ -13,6 +14,7 @@ from xopen import xopen
 from cs336_alignment.drgrpo_grader import r1_zero_reward_fn
 
 logger = logging.getLogger(__name__)
+BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 def load_jsonl(path):
@@ -174,25 +176,25 @@ if __name__ == "__main__":
         "--model-path",
         type=str,
         #default="deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
-        default="models/DeepSeek-R1-Distill-Qwen-7B",
+        default=str(BASE_DIR / "models" / "DeepSeek-R1-Distill-Qwen-7B"),
         help="HF model name or local path",
     )
     parser.add_argument(
         "--data-path",
         type=str,
-        default="data/math/train.jsonl",
+        default=str(BASE_DIR / "data" / "math" / "train.jsonl"),
         help="Path to MATH train JSONL",
     )
     parser.add_argument(
         "--prompt-path",
         type=str,
-        default="cs336_alignment/prompts/r1_zero_short.prompt",
+        default=str(BASE_DIR / "cs336_alignment" / "prompts" / "r1_zero_short.prompt"),
         help="Prompt template path",
     )
     parser.add_argument(
         "--output-path",
         type=str,
-        default="data/math/sft.jsonl",
+        default=str(BASE_DIR / "data" / "math" / "sft.jsonl"),
         help="Path to write output JSONL",
     )
     parser.add_argument(

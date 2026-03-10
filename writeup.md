@@ -2,9 +2,9 @@
 ## SETUP
 
 For those who are **following along at home**:
-- You can get the same **MATH dataset** by running this [scripts](scripts/download_math_data.py).
+- You can get the same **MATH dataset** by running this [scripts](scripts/data/download_math_data.py).
 
-- You can download Qwen2.5-Math-1.5B by running this [scripts](scripts/download_Qwen_model.py).
+- You can download Qwen2.5-Math-1.5B by running this [scripts](scripts/data/download_Qwen_model.py).
 
 
 ## 3.2 Zero-shot MATH Baseline
@@ -175,7 +175,9 @@ The model follows the required output format, but the answer is incorrect.
 
 # 4 Supervised Finetuning for MATH
 ## SETUP
-You can use a teacher model(deepseek-ai/DeepSeek-R1-Distill-Qwen-7B) to [generate](scripts/generate_sft_reasoning_dataset.py) reasoning traces for MATH - training set problems and build an SFT dataset as a substitute for `/data/a5-alignment/MATH/sft.jsonl`.
+For those who are **following along at home**:
+
+You can use a teacher model(deepseek-ai/DeepSeek-R1-Distill-Qwen-7B) to [generate](scripts/data/generate_sft_reasoning_dataset.py) reasoning traces for MATH - training set problems and build an SFT dataset as a substitute for `/data/a5-alignment/MATH/sft.jsonl`.
 
 ```
 Dataset Quality Summary (data/math/sft.jsonl):
@@ -186,7 +188,7 @@ Dataset Quality Summary (data/math/sft.jsonl):
 	•	Format: 100% do not strictly follow the <think> ... </think> <answer> ... </answer> structure. 
 ```
 
-By running this format correction [script](scipts/sft_format_correction.py), we force to correct their formats. The new data file is stored as `/MATH/sft_format_correction.jsonl`.
+By running this format correction [script](scripts/data/sft_format_correction.py), we force to correct their formats. The new data file is stored as `/MATH/sft_format_correction.jsonl`.
 
 ```
 Dataset Quality Summary (data/math/sft_format_correction.jsonl):
@@ -261,3 +263,8 @@ I use 4096 samples to finetune, the hypeparameters can be found [here](cs336_ali
 - **Bottom line:**
   - The improvement is **not just a formatting effect**.
   - Formatting improvement is the first major driver, but SFT also substantially improves mathematical correctness within the format-correct subset.
+
+# 5 Expert Iteration for MATH
+  TODO
+
+# 6 Primer on Policy Gradients

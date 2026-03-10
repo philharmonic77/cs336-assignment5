@@ -59,7 +59,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Correct SFT response format and output JSONL.")
     args = parser.parse_args()
 
-    base_dir = Path(__file__).resolve().parents[1]
+    base_dir = Path(__file__).resolve().parents[2]
     in_path = base_dir / "data/math/sft.jsonl"
     out_path = in_path.parent / "sft_format_correction.jsonl"
 

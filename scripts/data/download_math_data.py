@@ -3,6 +3,9 @@ import json
 import re
 from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parents[2]
+DATA_DIR = BASE_DIR / "data" / "math"
+
 subjects = [
     "algebra",
     "counting_and_probability",
@@ -61,10 +64,10 @@ def save_jsonl(dataset, path):
             f.write(json.dumps(item) + "\n")
 
 
-Path("data/math").mkdir(parents=True, exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-save_jsonl(train_dataset, "data/math/train.jsonl")
-save_jsonl(test_dataset, "data/math/validation.jsonl")
+save_jsonl(train_dataset, DATA_DIR / "train.jsonl")
+save_jsonl(test_dataset, DATA_DIR / "validation.jsonl")
 
 print("Saved train/test JSONL.")
 print("Train size:", len(train_dataset))
