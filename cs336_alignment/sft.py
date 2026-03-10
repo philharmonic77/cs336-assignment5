@@ -347,6 +347,7 @@ def sft_microbatch_train_step(
     print("returned_loss =", loss.item())
     loss.backward()
     print("normalize_constant =", normalize_constant)
+    print("response_mask.sum() =", response_mask.sum().item())
 
     metadata = {
         "num_response_tokens": response_mask.sum().detach(),
