@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizerBase
 from cs336_alignment.sft import tokenize_prompt_and_output, compute_entropy, get_response_log_probs,\
     sft_microbatch_train_step, masked_normalize
+from cs336_alignment.grpo import compute_group_normalized_rewards
 
 
 def run_tokenize_prompt_and_output(
