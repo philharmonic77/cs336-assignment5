@@ -1,24 +1,12 @@
-# SETUP
+# 3 Measuring Zero-Shot MATH Performance
+## SETUP
+
 For those who are **following along at home**:
 - You can get the same **MATH dataset** by running this [scripts](scripts/download_math_data.py).
 
 - You can download Qwen2.5-Math-1.5B by running this [scripts](scripts/download_Qwen_model.py).
 
-- You can use a teacher model(deepseek-ai/DeepSeek-R1-Distill-Qwen-7B) to [generate](scripts/generate_sft_reasoning_dataset.py) reasoning traces for MATH - training set problems and build an SFT dataset as a substitute for `/data/a5-alignment/MATH/sft.jsonl`, which will be used in section 4.
 
-```
-Dataset Quality Summary (data/math/sft.jsonl):
-	•	Size: 15,000 reasoning traces.
-	•	Accuracy (relaxed evaluation): 7695 / 15000 ≈ 51.3%.
-	•	Reasoning length: average ≈772 tokens, maximum 1024 tokens.
-	•	finish_reason distribution: stop -> 8794 (≈58.6%)
-, length -> 6206 (≈41.4%)
-	•	Format: 100% do not strictly follow the <think> ... </think> <answer> ... </answer> structure. 
-```
-
-By running this format correction [script](scipts/sft_format_correction.py), we force to correct their formats. The new data file is stored as `/MATH/sft_format_correction.jsonl`.
-
-# 3 Measuring Zero-Shot MATH Performance
 ## 3.2 Zero-shot MATH Baseline
 ### Problem (math_baseline): 4 points
 (a) Here are the [script](scripts/evaluate_math_zero_shot.py) and the evaluation [output](outputs/math_baseline/).
@@ -186,6 +174,27 @@ The model follows the required output format, but the answer is incorrect.
 (c) The Qwen 2.5 Math 1.5B zero-shot baseline performs poorly on the MATH validation set. With temperature=1 and max_tokens=1024, the model achieves an answer accuracy of 2.7% (135/5000), and only 17.9% of generations satisfy the required output format, indicating that most outputs either fail the format constraint or produce incorrect answers.
 
 # 4 Supervised Finetuning for MATH
+## SETUP
+You can use a teacher model(deepseek-ai/DeepSeek-R1-Distill-Qwen-7B) to [generate](scripts/generate_sft_reasoning_dataset.py) reasoning traces for MATH - training set problems and build an SFT dataset as a substitute for `/data/a5-alignment/MATH/sft.jsonl`.
+
+```
+Dataset Quality Summary (data/math/sft.jsonl):
+	•	Size: 15,000 reasoning traces.
+	•	Accuracy (relaxed evaluation using cs336_alignment/loose_grader.py): 7695 / 15000 ≈ 51.3%.
+	•	Reasoning length: average ≈772 tokens, maximum 1024 tokens.
+	•	finish_reason distribution: stop -> 8794 (≈58.6%), length -> 6206 (≈41.4%)
+	•	Format: 100% do not strictly follow the <think> ... </think> <answer> ... </answer> structure. 
+```
+
+By running this format correction [script](scipts/sft_format_correction.py), we force to correct their formats. The new data file is stored as `/MATH/sft_format_correction.jsonl`.
+
+```
+Dataset Quality Summary (data/math/sft_format_correction.jsonl):
+	•	Size: 4,734 reasoning traces.
+	•	Accuracy (relaxed evaluation using cs336_alignment/loose_grader.py): 3807 / 4734 ≈ 80.4%.
+  •	Accuracy (strict evaluation using cs336_alignment/drgrpo_grader.py): 3759 / 4734 ≈ 79.4%.
+	•	finish_reason distribution: stop -> 4677 (≈98.8%), length -> 57 (≈1.2%)
+```
 ## 4.2 SFT Helper Methods
 ### Problem (tokenize_prompt_and_output): Prompt and output tokenization (2 points)
 See [tokenize_prompt_and_output func](cs336_alignment/sft.py).
@@ -206,4 +215,49 @@ See [sft_microbatch_train_step func](cs336_alignment/sft.py).
 See [log_generations func](cs336_alignment/sft.py).
 
 ### Problem (sft_experiment): Run SFT on the MATH dataset (2 points) (2 H100 hrs)
-See [run func](cs336_alignment/sft.py).
+See [run_sft func](cs336_alignment/sft.py).
+
+I use 4096 samples to finetune, the hypeparameters can be found [here](cs336_alignment/sft.py). The results are as follows:
+| Setting | Format = 1, Answer = 1 | Format = 1, Answer = 0 | Format = 0, Answer = 0 | Format-Correct Total |
+|---|---:|---:|---:|---:|
+| No SFT | 135 (2.70%) | 759 (15.18%) | 4106 (82.12%) | 894 (17.88%) |
+| All-sample SFT | 840 (16.8%) | 1220 (24.4%) | 2940 (58.8%) | 2060 (41.2%) |
+| Correct-only SFT | 895 (17.9%) | 980 (19.6%) | 3125 (62.5%) | 1875 (37.5%) |
+
+
+![](assets/sft_eval.jpg)
+![](assets/sft_train.jpg)
+
+- **Formatting was the primary bottleneck before SFT.**
+  - Without finetuning, only **17.88%** of outputs were format-correct at all.
+  - This means **82.12%** of examples were impossible to get correct under the grader.
+
+- **SFT improves correctness partly by greatly increasing format compliance.**
+  - **All-sample SFT:** format-correct rate = **16.8% + 24.4% = 41.2%**
+  - **Correct-only SFT:** format-correct rate = **17.9% + 19.6% = 37.5%**
+  - Both are much higher than the no-SFT baseline (**17.88%**).
+
+- **SFT also improves answer accuracy beyond formatting alone.**
+  - Among format-correct outputs, the fraction that are actually correct is:
+    - **No SFT:** `2.7 / 17.88 ≈ 15.1%`
+    - **All-sample SFT:** `16.8 / 41.2 ≈ 40.8%`
+    - **Correct-only SFT:** `17.9 / 37.5 ≈ 47.7%`
+  - So SFT does not only teach the model to match the required format; it also makes answers more likely to be correct once the format is valid.
+
+- **All-sample vs. correct-only SFT shows a tradeoff.**
+  - **All-sample SFT** reduces the fully wrong bucket more:
+    - **58.8%** vs. **62.5%**
+  - **Correct-only SFT** achieves slightly better final correctness:
+    - **17.9%** vs. **16.8%**
+  - This suggests all-sample training helps more examples reach valid format, while correct-only training converts a larger share of valid-format outputs into fully correct ones.
+
+- **Best interpretation:**
+  - The gain in correct fraction comes from **both**:
+    - better **format accuracy**
+    - better **answer accuracy conditional on correct format**
+  - The likely progression is:
+    - **(format=0, answer=0) → (format=1, answer=0) → (format=1, answer=1)**
+
+- **Bottom line:**
+  - The improvement is **not just a formatting effect**.
+  - Formatting improvement is the first major driver, but SFT also substantially improves mathematical correctness within the format-correct subset.

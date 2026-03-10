@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 from typing import Iterable, List, Dict, Any
 
+from cs336_alignment.drgrpo_grader import r1_zero_reward_fn
 
 def iter_records_from_jsonl(path: Path) -> Iterable[Dict[str, Any]]:
     with path.open("r", encoding="utf-8") as f:
@@ -45,6 +46,11 @@ def process_records(records: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
             rec["response"] = correct_response(rec["response"])
             rec["format_correct"] = is_format_correct(rec["response"])
         if rec.get("format_correct") is True:
+            rec["metrics"] = r1_zero_reward_fn(
+                rec.get("response", ""),
+                rec.get("answer"),
+                fast=True,
+            )
             out.append(rec)
     return out
 
