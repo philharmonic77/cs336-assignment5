@@ -39,7 +39,7 @@ def masked_mean(
     dim: int | None= None,
 ) -> torch.Tensor:
     masked_sum = (tensor * mask).sum(dim=dim)
-    mask_count = mask.sum(dim=dim).clamp_min(1)
+    mask_count = mask.sum(dim=dim)
     return masked_sum / mask_count
 
 def compute_policy_gradient_loss(
