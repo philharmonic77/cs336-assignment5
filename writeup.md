@@ -198,26 +198,10 @@ Dataset Quality Summary (data/math/sft_format_correction.jsonl):
 	•	finish_reason distribution: stop -> 4677 (≈98.8%), length -> 57 (≈1.2%)
 ```
 ## 4.2 SFT Helper Methods
-### Problem (tokenize_prompt_and_output): Prompt and output tokenization (2 points)
-See [tokenize_prompt_and_output func](cs336_alignment/sft.py).
-
-### Problem (compute_entropy): Per-token entropy (1 point)
-See [compute_entropy func](cs336_alignment/sft.py).
-
-### Problem (get_response_log_probs): Response log-probs (and entropy) (2 points)
-See [get_response_log_probs func](cs336_alignment/sft.py).
-
-### Problem (masked_normalize): Masked normalize (1 point)
-See [masked_normalize func](cs336_alignment/sft.py).
-
-### Problem (sft_microbatch_train_step): Microbatch train step (3 points)
-See [sft_microbatch_train_step func](cs336_alignment/sft.py).
-
-### Problem (log_generations): Logging generations (1 point)
-See [log_generations func](cs336_alignment/sft.py).
+See this [script](cs336_alignment/sft.py).
 
 ### Problem (sft_experiment): Run SFT on the MATH dataset (2 points) (2 H100 hrs)
-See [run_sft func](cs336_alignment/sft.py).
+See [run_sft func](cs336_alignment/sft.py) and [bash](scripts/sft_experiment.sh).
 
 I use 4096 samples to finetune, the hypeparameters can be found [here](cs336_alignment/sft.py). The results are as follows:
 | Setting | Format = 1, Answer = 1 | Format = 1, Answer = 0 | Format = 0, Answer = 0 | Format-Correct Total |
@@ -267,4 +251,8 @@ I use 4096 samples to finetune, the hypeparameters can be found [here](cs336_ali
 # 5 Expert Iteration for MATH
   TODO
 
-# 6 Primer on Policy Gradients
+# 7 Group Relative Policy Optimization
+See this [script](cs336_alignment/grpo.py).
+
+### Problem (grpo_train_loop): GRPO train loop (5 points)
+Run this [bash](scripts/grpo_baseline.sh) will give you a baseline result.

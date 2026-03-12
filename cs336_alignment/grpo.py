@@ -2,6 +2,7 @@ import random
 from pathlib import Path
 import torch
 import wandb
+import typer
 from torch.utils.data import Dataset, DataLoader
 from typing import Callable, Literal
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -268,31 +269,35 @@ def train_on_rollout_batch(
     return train_step
 
 def grpo_train_loop(
-    run_name,
-    prompt_path,
-    model_load_path,
-    model_save_path,
-    train_jsonl_path,
-    group_size,
-    rollout_batch_size,
-    train_batch_size,
-    gradient_accumulation_steps,
-    n_grpo_steps,
-    epochs_per_rollout_batch,
-    learning_rate,
-    max_grad_norm,
-    advantage_eps,
-    normalize_by_std,
-    loss_type,
-    cliprange,
-    sampling_temperature,
-    sampling_min_tokens,
-    sampling_max_tokens,
-    gpu_memory_utilization,
-    eval_json_path,
-    eval_interval,
-    eval_sample_size,
-    seed,
+    run_name: str,
+    prompt_path: Path = Path("cs336_alignment/prompts/r1_zero.prompt"),
+    model_load_path: Path = Path("models/Qwen2.5-Math-1.5B"),
+    model_save_path: Path = Path("outputs/grpo"),
+    train_jsonl_path: Path = Path("data/math/sft_format_correction.jsonl"),
+    group_size: int = 8,
+    rollout_batch_size: int = 256,
+    train_batch_size: int = 256,
+    gradient_accumulation_steps: int = 256,
+    n_grpo_steps: int = 200,
+    epochs_per_rollout_batch: int = 1,
+    learning_rate: float = 1e-5,
+    max_grad_norm: float = 1.0,
+    advantage_eps: float = 1e-6,
+    normalize_by_std: bool = True,
+    loss_type: Literal[
+    "no_baseline",
+    "reinforce_with_baseline",
+    "grpo_clip",
+    ] = "reinforce_with_baseline",
+    cliprange: float = 0.2,
+    sampling_temperature: float = 1.0,
+    sampling_min_tokens: int = 4,
+    sampling_max_tokens: int = 1024,
+    gpu_memory_utilization: float = 0.85,
+    eval_json_path: Path = Path("data/math/validation.jsonl"),
+    eval_interval: int = 5,
+    eval_sample_size: int = 1024,
+    seed: int = 0,
 ):
     assert train_batch_size % gradient_accumulation_steps == 0, (
     "train_batch_size must be divisible by gradient_accumulation_steps"
@@ -397,9 +402,10 @@ def grpo_train_loop(
                 **{f"eval/{k}": v for k, v in eval_result.items()}
             })
 
+    model_save_path = Path(model_save_path)
+    model_save_path.mkdir(parents=True, exist_ok=True)
     policy.save_pretrained(model_save_path)
     tokenizer.save_pretrained(model_save_path)
-
 
 class GrpoDataset(Dataset):
     def __init__(self, path: str | Path):
@@ -558,3 +564,6 @@ def compute_group_normalized_rewards(
         metadata["mean_group_std"] = group_stds.mean().item()
 
     return advantages, raw_rewards, metadata
+
+if __name__ == "__main__":
+    typer.run(grpo_train_loop)
