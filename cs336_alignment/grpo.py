@@ -10,6 +10,263 @@ from cs336_alignment.drgrpo_grader import r1_zero_reward_fn
 from cs336_alignment.sft import load_jsonl, load_prompt_template, run_eval, get_ground_truth, format_prompts,\
     init_vllm, load_policy_into_vllm_instance, tokenize_prompt_and_output, get_response_log_probs, masked_normalize
 
+def setup_grpo_environment(
+    run_name,
+    seed,
+):
+    random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    train_device = "cuda:0"
+    eval_device = "cuda:1"
+
+    wandb.init(project="a5-grpo", name=run_name)
+    wandb.define_metric("grpo_step")
+    wandb.define_metric("train_step")
+    wandb.define_metric("eval_step")
+    wandb.define_metric("grpo/*", step_metric="grpo_step")
+    wandb.define_metric("train/*", step_metric="train_step")
+    wandb.define_metric("eval/*", step_metric="eval_step")
+
+    return train_device, eval_device
+
+def setup_grpo_models_and_tokenizer(
+    model_load_path,
+    train_device,
+    eval_device,
+    seed,
+    gpu_memory_utilization,
+    learning_rate,
+    sampling_temperature,
+    sampling_min_tokens,
+    sampling_max_tokens,
+    group_size,
+):
+    policy = AutoModelForCausalLM.from_pretrained(
+        model_load_path, 
+        torch_dtype=torch.bfloat16, 
+        attn_implementation="flash_attention_2",
+        local_files_only=True
+        ).to(train_device)
+    policy.config.use_cache = False
+    policy.gradient_checkpointing_enable()
+
+    tokenizer = AutoTokenizer.from_pretrained(model_load_path, local_files_only=True)
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    policy.config.pad_token_id = tokenizer.pad_token_id
+
+    optimizer = torch.optim.AdamW(
+        policy.parameters(),
+        lr=learning_rate,
+        weight_decay=0.0,
+        betas=(0.9, 0.95),
+        )
+
+    rollout_llm = init_vllm(str(model_load_path), eval_device, seed, gpu_memory_utilization)
+    train_sampling_params = SamplingParams(
+        temperature=sampling_temperature,
+        top_p=1.0,
+        min_tokens=sampling_min_tokens,
+        max_tokens=sampling_max_tokens,
+        stop=["</answer>"],
+        include_stop_str_in_output=True,
+        n=group_size
+    )
+
+    eval_sampling_params = SamplingParams(
+        temperature=sampling_temperature,
+        top_p=1.0,
+        min_tokens=sampling_min_tokens,
+        max_tokens=sampling_max_tokens,
+        stop=["</answer>"],
+        include_stop_str_in_output=True,
+        n=1
+    )
+
+    return policy, tokenizer, optimizer, rollout_llm, train_sampling_params, eval_sampling_params
+
+def setup_grpo_data(
+    prompt_path,
+    train_jsonl_path,
+    eval_json_path,
+    eval_sample_size,
+    n_prompts_per_rollout_batch,
+):
+    prompt_template = load_prompt_template(prompt_path)
+    dataset = GrpoDataset(train_jsonl_path)
+    dataloader = DataLoader(
+        dataset,
+        n_prompts_per_rollout_batch,
+        shuffle=True,
+        drop_last=True,
+        collate_fn=collate_fn,
+    )
+    dataloader_iter = iter(dataloader)
+
+    eval_data = random.sample(load_jsonl(eval_json_path), eval_sample_size)
+    eval_prompt_template = load_prompt_template(prompt_path)
+    eval_prompts = format_prompts(eval_data, eval_prompt_template)
+    eval_ground_truths = [get_ground_truth(ed) for ed in eval_data]
+
+    return prompt_template, dataloader, dataloader_iter, eval_prompts, eval_ground_truths
+
+def collect_rollouts_and_rewards(
+    dataloader_iter,
+    dataloader,
+    prompt_template,
+    rollout_llm,
+    train_sampling_params,
+    group_size,
+    advantage_eps,
+    normalize_by_std,
+):
+    try:
+        batch = next(dataloader_iter)
+    except StopIteration:
+        dataloader_iter = iter(dataloader)
+        batch = next(dataloader_iter)
+    prompts = [prompt_template.format(question=p) for p in batch["problem"]]
+    answers = batch["answer"]
+
+    # 1. old policy rollout
+    raw_outputs = rollout_llm.generate(prompts, train_sampling_params)
+    rollout_responses = [
+        candidate.text
+        for output in raw_outputs
+        for candidate in output.outputs
+    ]
+
+    # 2. repeat answers to match group_size   
+    repeated_prompts = [p for p in prompts for _ in range(group_size)]    
+    repeated_answers = [a for a in answers for _ in range(group_size)]
+
+    # 3. compute rewards and advantages
+    advantages, raw_rewards, reward_metadata = compute_group_normalized_rewards(
+        reward_fn=r1_zero_reward_fn,
+        rollout_responses=rollout_responses,
+        repeated_ground_truths=repeated_answers,
+        group_size=group_size,
+        advantage_eps=advantage_eps,
+        normalize_by_std=normalize_by_std,
+    )
+
+    return dataloader_iter, repeated_prompts, rollout_responses, advantages, raw_rewards, reward_metadata
+
+def prepare_training_tensors(
+    repeated_prompts,
+    rollout_responses,
+    tokenizer,
+    policy,
+    train_device,
+):
+    tokenized = tokenize_prompt_and_output(
+        repeated_prompts,
+        rollout_responses,
+        tokenizer,
+    )
+    input_ids = tokenized["input_ids"].to(train_device)
+    labels = tokenized["labels"].to(train_device)
+    response_mask = tokenized["response_mask"].to(train_device)
+
+    with torch.no_grad():
+        old_log_probs = get_response_log_probs(policy, input_ids, labels)["log_probs"].detach()
+
+    return input_ids, labels, response_mask, old_log_probs
+
+def train_on_rollout_batch(
+    policy,
+    optimizer,
+    input_ids,
+    labels,
+    response_mask,
+    advantages,
+    raw_rewards,
+    old_log_probs,
+    train_batch_size,
+    gradient_accumulation_steps,
+    micro_train_batch_size,
+    n_train_batches_per_rollout_batch,
+    epochs_per_rollout_batch,
+    loss_type,
+    cliprange,
+    max_grad_norm,
+    grpo_step,
+):
+    train_device = input_ids.device
+    for epoch_idx in range(epochs_per_rollout_batch):
+        policy.train()
+
+        for train_batch_idx in range(n_train_batches_per_rollout_batch):
+            optimizer.zero_grad(set_to_none=True)
+            train_batch_start = train_batch_idx * train_batch_size
+
+            running_loss = 0.0
+            all_is_clipped = []
+            for micro_step in range(gradient_accumulation_steps):
+                start = train_batch_start + micro_step * micro_train_batch_size
+                end = start + micro_train_batch_size
+
+                mb_input_ids = input_ids[start:end]
+                mb_labels = labels[start:end]
+                mb_response_mask = response_mask[start:end]
+                mb_policy_log_probs = get_response_log_probs(policy, mb_input_ids, mb_labels)["log_probs"]
+
+                mb_advantages = advantages[start:end].unsqueeze(1).to(train_device)
+                mb_raw_rewards = raw_rewards[start:end].unsqueeze(1).to(train_device)
+                mb_old_log_probs = old_log_probs[start:end]
+
+                microbatch_loss, metadata = grpo_microbatch_train_step(
+                    mb_policy_log_probs,
+                    mb_response_mask,
+                    gradient_accumulation_steps,
+                    loss_type,
+                    mb_raw_rewards,
+                    mb_advantages,
+                    mb_old_log_probs,
+                    cliprange
+                )
+                running_loss += microbatch_loss.detach().item()
+                if loss_type == "grpo_clip":
+                    all_is_clipped.append(metadata["is_clipped"].float())
+
+            grad_norm = torch.nn.utils.clip_grad_norm_(policy.parameters(), max_grad_norm)
+            optimizer.step() 
+
+            train_step = grpo_step * epochs_per_rollout_batch * n_train_batches_per_rollout_batch \
+                + epoch_idx * n_train_batches_per_rollout_batch \
+                + train_batch_idx
+            
+            train_batch_start = train_batch_idx * train_batch_size
+            train_batch_end = train_batch_start + train_batch_size
+
+            train_batch_entropy = masked_mean(
+                get_response_log_probs(
+                    policy,
+                    input_ids[train_batch_start:train_batch_end],
+                    labels[train_batch_start:train_batch_end],
+                    True,
+                )["token_entropy"],
+                response_mask[train_batch_start:train_batch_end],
+            ).item()
+            
+            wandb.log({
+            "train_step": train_step,
+            "train/loss": running_loss,
+            "train/grad_norm": grad_norm.item(),
+            "train/token_entropy": train_batch_entropy
+        })
+            if loss_type == "grpo_clip":
+                wandb.log({
+                    "train_step": train_step,
+                    "train/clip_fraction": torch.cat(
+                            [x.reshape(-1) for x in all_is_clipped]
+                        ).mean().item(),
+                })
+
+    return train_step
+
 def grpo_train_loop(
     run_name,
     prompt_path,
@@ -52,113 +309,47 @@ def grpo_train_loop(
     )
     assert rollout_batch_size % train_batch_size == 0, (
     "rollout_batch_size must be divisible by train_batch_size"
-)
+    )
     n_train_batches_per_rollout_batch = rollout_batch_size // train_batch_size
 
-    random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    train_device, eval_device = setup_grpo_environment(
+        run_name,
+        seed,
+    )
 
-    train_device = "cuda:0"
-    eval_device = "cuda:1"
+    policy, tokenizer, optimizer, rollout_llm, train_sampling_params, eval_sampling_params = setup_grpo_models_and_tokenizer(
+        model_load_path,
+        train_device,
+        eval_device,
+        seed,
+        gpu_memory_utilization,
+        learning_rate,
+        sampling_temperature,
+        sampling_min_tokens,
+        sampling_max_tokens,
+        group_size,
+    )
 
-    wandb.init(project="a5-grpo", name=run_name)
-    wandb.define_metric("grpo_step")
-    wandb.define_metric("train_step")
-    wandb.define_metric("eval_step")
-    wandb.define_metric("grpo/*", step_metric="grpo_step")
-    wandb.define_metric("train/*", step_metric="train_step")
-    wandb.define_metric("eval/*", step_metric="eval_step")
-
-    prompt_template = load_prompt_template(prompt_path)
-    dataset = GrpoDataset(train_jsonl_path)
-    dataloader = DataLoader(
-        dataset,
+    prompt_template, dataloader, dataloader_iter, eval_prompts, eval_ground_truths = setup_grpo_data(
+        prompt_path,
+        train_jsonl_path,
+        eval_json_path,
+        eval_sample_size,
         n_prompts_per_rollout_batch,
-        shuffle=True,
-        drop_last=True,
-        collate_fn=collate_fn,
-    )
-    dataloader_iter = iter(dataloader)
-
-    policy = AutoModelForCausalLM.from_pretrained(
-        model_load_path, 
-        torch_dtype=torch.bfloat16, 
-        attn_implementation="flash_attention_2",
-        local_files_only=True
-        ).to(train_device)
-    policy.config.use_cache = False
-    policy.gradient_checkpointing_enable()
-
-    tokenizer = AutoTokenizer.from_pretrained(model_load_path, local_files_only=True)
-    if tokenizer.pad_token_id is None:
-        tokenizer.pad_token = tokenizer.eos_token
-    policy.config.pad_token_id = tokenizer.pad_token_id
-
-    optimizer = torch.optim.AdamW(
-        policy.parameters(),
-        lr=learning_rate,
-        weight_decay=0.0,
-        betas=(0.9, 0.95),
-        )
-
-    rollout_llm = init_vllm(str(model_load_path), eval_device, seed, gpu_memory_utilization)
-    sampling_params = SamplingParams(
-        temperature=sampling_temperature,
-        top_p=1.0,
-        min_tokens=sampling_min_tokens,
-        max_tokens=sampling_max_tokens,
-        stop=["</answer>"],
-        include_stop_str_in_output=True,
-        n=group_size
     )
 
-    eval_data = random.sample(load_jsonl(eval_json_path), eval_sample_size)
-    eval_sampling_params = SamplingParams(
-        temperature=sampling_temperature,
-        top_p=1.0,
-        min_tokens=sampling_min_tokens,
-        max_tokens=sampling_max_tokens,
-        stop=["</answer>"],
-        include_stop_str_in_output=True,
-        n=1
-    )
-    eval_prompt_template = load_prompt_template(prompt_path)
-    eval_prompts = format_prompts(eval_data, eval_prompt_template)
-    eval_ground_truths = [get_ground_truth(ed) for ed in eval_data]
-
-    train_step = 0
     eval_step = 0
     for grpo_step in range(n_grpo_steps):
 
-        try:
-            batch = next(dataloader_iter)
-        except StopIteration:
-            dataloader_iter = iter(dataloader)
-            batch = next(dataloader_iter)
-        prompts = [prompt_template.format(question=p) for p in batch["problem"]]
-        answers = batch["answer"]
-
-        # 1. old policy rollout
-        raw_outputs = rollout_llm.generate(prompts, sampling_params)
-        rollout_responses = [
-            candidate.text
-            for output in raw_outputs
-            for candidate in output.outputs
-        ]
-
-        # 2. repeat answers to match group_size   
-        repeated_prompts = [p for p in prompts for _ in range(group_size)]    
-        repeated_answers = [a for a in answers for _ in range(group_size)]
-
-        # 3. compute rewards and advantages
-        advantages, raw_rewards, reward_metadata = compute_group_normalized_rewards(
-            reward_fn=r1_zero_reward_fn,
-            rollout_responses=rollout_responses,
-            repeated_ground_truths=repeated_answers,
-            group_size=group_size,
-            advantage_eps=advantage_eps,
-            normalize_by_std=normalize_by_std,
+        dataloader_iter, repeated_prompts, rollout_responses, advantages, raw_rewards, reward_metadata = collect_rollouts_and_rewards(
+            dataloader_iter,
+            dataloader,
+            prompt_template,
+            rollout_llm,
+            train_sampling_params,
+            group_size,
+            advantage_eps,
+            normalize_by_std,
         )
         wandb.log({
             "grpo_step": grpo_step,
@@ -167,77 +358,33 @@ def grpo_train_loop(
             "grpo/mean_answer_reward": reward_metadata["mean_answer_reward"],
         })
 
-        # 4. tokenize prompt + rollout_output
-        tokenized = tokenize_prompt_and_output(
+        input_ids, labels, response_mask, old_log_probs = prepare_training_tensors(
             repeated_prompts,
             rollout_responses,
             tokenizer,
+            policy,
+            train_device,
         )
-        input_ids = tokenized["input_ids"].to(train_device)
-        labels = tokenized["labels"].to(train_device)
-        response_mask = tokenized["response_mask"].to(train_device)
 
-        # 5. compute old log probs
-        with torch.no_grad():
-            old_log_probs = get_response_log_probs(policy, input_ids, labels)["log_probs"].detach()
-
-        # 6. train microbatch
-        for epoch_idx in range(epochs_per_rollout_batch):
-            policy.train()
-
-            for train_batch_idx in range(n_train_batches_per_rollout_batch):
-                optimizer.zero_grad(set_to_none=True)
-                train_batch_start = train_batch_idx * train_batch_size
-
-                running_loss = 0.0
-                all_is_clipped = []
-                for micro_step in range(gradient_accumulation_steps):
-                    start = train_batch_start + micro_step * micro_train_batch_size
-                    end = start + micro_train_batch_size
-
-                    mb_input_ids = input_ids[start:end]
-                    mb_labels = labels[start:end]
-                    mb_response_mask = response_mask[start:end]
-                    mb_policy_log_probs = get_response_log_probs(policy, mb_input_ids, mb_labels)["log_probs"]
-
-                    mb_advantages = advantages[start:end].unsqueeze(1).to(train_device)
-                    mb_raw_rewards = raw_rewards[start:end].unsqueeze(1).to(train_device)
-                    mb_old_log_probs = old_log_probs[start:end]
-
-                    microbatch_loss, metadata = grpo_microbatch_train_step(
-                        mb_policy_log_probs,
-                        mb_response_mask,
-                        gradient_accumulation_steps,
-                        loss_type,
-                        mb_raw_rewards,
-                        mb_advantages,
-                        mb_old_log_probs,
-                        cliprange
-                    )
-                    running_loss += microbatch_loss.detach().item()
-                    if loss_type == "grpo_clip":
-                        all_is_clipped.append(metadata["is_clipped"].float())
-
-                grad_norm = torch.nn.utils.clip_grad_norm_(policy.parameters(), max_grad_norm)
-                optimizer.step() 
-
-                train_step = grpo_step * epochs_per_rollout_batch * n_train_batches_per_rollout_batch \
-                    + epoch_idx * n_train_batches_per_rollout_batch \
-                    + train_batch_idx
-                
-                wandb.log({
-                "train_step": train_step,
-                "train/loss": running_loss,
-                "train/grad_norm": grad_norm.item(),
-                "train/token_entropy": get_response_log_probs(policy, input_ids, labels, True)["token_entropy"].mean().item()
-            })
-                if loss_type == "grpo_clip":
-                    wandb.log({
-                        "train_step": train_step,
-                        "train/clip_fraction": torch.cat(
-                                [x.reshape(-1) for x in all_is_clipped]
-                            ).mean().item(),
-                    })
+        train_on_rollout_batch(
+            policy,
+            optimizer,
+            input_ids,
+            labels,
+            response_mask,
+            advantages,
+            raw_rewards,
+            old_log_probs,
+            train_batch_size,
+            gradient_accumulation_steps,
+            micro_train_batch_size,
+            n_train_batches_per_rollout_batch,
+            epochs_per_rollout_batch,
+            loss_type,
+            cliprange,
+            max_grad_norm,
+            grpo_step,
+        )
 
         # 7. reload rollout model              
         load_policy_into_vllm_instance(policy, rollout_llm)
