@@ -284,11 +284,7 @@ def grpo_train_loop(
     max_grad_norm: float = 1.0,
     advantage_eps: float = 1e-6,
     normalize_by_std: bool = True,
-    loss_type: Literal[
-    "no_baseline",
-    "reinforce_with_baseline",
-    "grpo_clip",
-    ] = "reinforce_with_baseline",
+    loss_type: str = "reinforce_with_baseline",
     cliprange: float = 0.2,
     sampling_temperature: float = 1.0,
     sampling_min_tokens: int = 4,
@@ -299,6 +295,11 @@ def grpo_train_loop(
     eval_sample_size: int = 1024,
     seed: int = 0,
 ):
+    assert loss_type in {
+        "no_baseline",
+        "reinforce_with_baseline",
+        "grpo_clip",
+    }, "loss_type must be one of: no_baseline, reinforce_with_baseline, grpo_clip"
     assert train_batch_size % gradient_accumulation_steps == 0, (
     "train_batch_size must be divisible by gradient_accumulation_steps"
     )
