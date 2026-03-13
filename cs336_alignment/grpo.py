@@ -273,7 +273,7 @@ def grpo_train_loop(
     prompt_path: Path = Path("cs336_alignment/prompts/r1_zero.prompt"),
     model_load_path: Path = Path("models/Qwen2.5-Math-1.5B"),
     model_save_path: Path = Path("outputs/grpo"),
-    train_jsonl_path: Path = Path("data/math/sft_format_correction.jsonl"),
+    train_jsonl_path: Path = Path("data/math/train.jsonl"),
     group_size: int = 8,
     rollout_batch_size: int = 256,
     train_batch_size: int = 256,
