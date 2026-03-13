@@ -250,24 +250,24 @@ def train_on_rollout_batch(
                 + epoch_idx * n_train_batches_per_rollout_batch \
                 + train_batch_idx
             
-            train_batch_start = train_batch_idx * train_batch_size
-            train_batch_end = train_batch_start + train_batch_size
+            # train_batch_start = train_batch_idx * train_batch_size
+            # train_batch_end = train_batch_start + train_batch_size
 
-            train_batch_entropy = masked_mean(
-                get_response_log_probs(
-                    policy,
-                    input_ids[train_batch_start:train_batch_end],
-                    labels[train_batch_start:train_batch_end],
-                    True,
-                )["token_entropy"],
-                response_mask[train_batch_start:train_batch_end],
-            ).item()
+            # train_batch_entropy = masked_mean(
+            #     get_response_log_probs(
+            #         policy,
+            #         input_ids[train_batch_start:train_batch_end],
+            #         labels[train_batch_start:train_batch_end],
+            #         True,
+            #     )["token_entropy"],
+            #     response_mask[train_batch_start:train_batch_end],
+            # ).item()
             
             wandb.log({
             "train_step": train_step,
             "train/loss": running_loss,
             "train/grad_norm": grad_norm.item(),
-            "train/token_entropy": train_batch_entropy
+            # "train/token_entropy": train_batch_entropy
         })
             if loss_type == "grpo_clip":
                 wandb.log({
