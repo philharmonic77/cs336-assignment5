@@ -383,7 +383,7 @@ def grpo_train_loop(
             train_device,
         )
 
-        train_on_rollout_batch(
+        train_step = train_on_rollout_batch(
             policy,
             optimizer,
             input_ids,
@@ -406,7 +406,7 @@ def grpo_train_loop(
         # 7. reload rollout model              
         load_policy_into_vllm_instance(policy, rollout_llm)
         
-        if (1 + grpo_step) % eval_interval == 0:
+        if (1 + train_step) % eval_interval == 0:
             eval_result = run_eval(rollout_llm, eval_prompts, eval_sampling_params, eval_ground_truths)
             eval_step += 1
             wandb.log({
@@ -414,7 +414,7 @@ def grpo_train_loop(
                 **{f"eval/{k}": v for k, v in eval_result.items()}
             })
 
-    model_save_path = Path(model_save_path)
+    model_save_path = Path(model_save_path) / run_name
     model_save_path.mkdir(parents=True, exist_ok=True)
     policy.save_pretrained(model_save_path)
     tokenizer.save_pretrained(model_save_path)
