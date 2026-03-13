@@ -289,7 +289,7 @@ def grpo_train_loop(
     sampling_temperature: float = 1.0,
     sampling_min_tokens: int = 4,
     sampling_max_tokens: int = 1024,
-    gpu_memory_utilization: float = 0.85,
+    gpu_memory_utilization: float = 0.7,
     eval_json_path: Path = Path("data/math/validation.jsonl"),
     eval_interval: int = 5,
     eval_sample_size: int = 1024,
