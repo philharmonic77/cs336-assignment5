@@ -172,7 +172,18 @@ def prepare_training_tensors(
     response_mask = tokenized["response_mask"].to(train_device)
 
     with torch.no_grad():
-        old_log_probs = get_response_log_probs(policy, input_ids, labels)["log_probs"].detach()
+        old_log_probs = []
+        old_log_probs_batch_size = 1
+        for start in range(0, input_ids.shape[0], old_log_probs_batch_size):
+            end = start + old_log_probs_batch_size
+            old_log_probs.append(
+                get_response_log_probs(
+                    policy,
+                    input_ids[start:end],
+                    labels[start:end],
+                )["log_probs"].detach()
+            )
+        old_log_probs = torch.cat(old_log_probs, dim=0)
 
     return input_ids, labels, response_mask, old_log_probs
 
