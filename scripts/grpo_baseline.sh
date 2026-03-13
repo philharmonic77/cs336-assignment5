@@ -2,4 +2,4 @@
 set -euo pipefail
 
 python cs336_alignment/grpo.py \
-  --run-name baseline
+  baseline
